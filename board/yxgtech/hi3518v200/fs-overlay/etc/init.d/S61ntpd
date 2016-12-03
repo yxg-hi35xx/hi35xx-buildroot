@@ -1,0 +1,28 @@
+#!/bin/sh
+#
+# Start/stop wsapi
+#
+
+PIDFILE=/var/run/ntpd.pid
+
+case "$1" in
+  start)
+	printf "Starting ntpd..."
+	start-stop-daemon -S -q -m -b -p $PIDFILE \
+			  -x /usr/sbin/ntpd -- -n
+	[ $? = 0 ] && echo "OK" || echo "FAIL"
+	;;
+  stop)
+	printf "Stopping ntpd..."
+	start-stop-daemon -K -q -p $PIDFILE \
+			  -x /usr/sbin/ntpd
+	[ $? = 0 ] && echo "OK" || echo "FAIL"
+	;;
+  restart|reload)
+	"$0" stop
+	"$0" start
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac

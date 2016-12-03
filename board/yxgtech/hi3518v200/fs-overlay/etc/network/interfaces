@@ -1,0 +1,12 @@
+# loopback
+auto lo
+iface lo inet loopback
+
+# wlan0
+auto wlan0
+iface wlan0 inet static
+address 192.168.0.1
+network 192.168.0.0
+netmask 255.255.255.0
+broadcast 192.168.0.255
+gateway 192.168.0.1

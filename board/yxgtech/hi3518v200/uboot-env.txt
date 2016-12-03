@@ -1,0 +1,34 @@
+meminfo=mem=40M
+sensor_type=ar0130
+console=ttyAMA0,115200n8
+bootargs=mem=40M console=ttyAMA0,115200n8
+bootdelay=1
+baudrate=115200
+ethaddr=00:00:23:34:45:66
+ipaddr=192.168.1.15
+netmask=255.255.255.0
+serverip=192.168.1.2
+gatewayip=192.168.1.1
+preboot=
+rootpath=/tftpboot/hi3518/rootfs
+bootfile=hi3518/uImage
+loadaddr=0x81000000
+mdio_intf=rmii
+phyaddru=1
+phyaddrd=2
+netdev=eth0
+nfsopts=hard,tcp,vers=3
+hieth=hieth.mdioifu=0 hieth.mdioifd=0 hieth.phyaddru=1 hieth.phyaddrd=2
+mtdparts=hi_sfc:256k(uboot),128k(uboot-env),128k(mfd),1536k(kernel),6m(rootfs),-(user)
+flashroot=/dev/mtdblock4
+flashrootfstype=squashfs,jffs2
+flashoverlay=/dev/mtdblock5
+flashoverlayfstype=jffs2
+commonargs=setenv bootargs ${meminfo} console=${console} mtdparts=${mtdparts} ${hieth} init=/init
+flashargs=run commonargs; setenv bootargs ${bootargs} root=${flashroot} rootfstype=${flashrootfstype} overlay=${flashoverlay} overlayfstype=${flashoverlayfstype}
+flashboot=echo Booting from SPI Flash...; run flashargs; sf probe 0 && sf read ${loadaddr} 0x80000 0x180000 && bootm
+nfsargs=run commonargs; setenv bootargs ${bootargs} root=/dev/nfs nfsroot=${serverip}:${rootpath},${nfsopts}
+addip=setenv bootargs ${bootargs} ip=${ipaddr}:${serverip}:${gatewayip}:${netmask}:${hostname}:${netdev}:off
+nfsboot=echo Booting from NFS...; run nfsargs; run addip; tftp ${loadaddr} ${bootfile} && bootm ${loadaddr}
+autoboot=if run flashboot; then; else run nfsboot; fi
+bootcmd=run autoboot
