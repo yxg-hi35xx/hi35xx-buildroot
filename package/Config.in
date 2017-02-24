@@ -1826,4 +1826,8 @@ menu "Text editors and viewers"
 	source "package/vim/Config.in"
 endmenu
 
+menu "YXGTech additional packages"
+	source "package/yxgtech/Config.in"
+endmenu
+
 endmenu

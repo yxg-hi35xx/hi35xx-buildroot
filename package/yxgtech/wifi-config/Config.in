@@ -1,0 +1,10 @@
+config BR2_PACKAGE_WIFI_CONFIG
+	bool "wifi-config"
+	depends on BR2_TOOLCHAIN_HAS_THREADS
+	depends on BR2_USE_MMU # fork()
+	help
+	  wifi-config is a wifi config utilities for mt7601u wifi adapter,
+	  include ELIAN smartlink technology.
+
+comment "wifi-config needs a toolchain w/ threads"
+	depends on !BR2_TOOLCHAIN_HAS_THREADS

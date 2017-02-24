@@ -1,0 +1,43 @@
+#!/bin/sh
+#
+# Start wifi-config....
+#
+
+WPA_CONF="/overlay/etc/wpa_supplicant.conf"
+
+start() {
+    printf "Starting wifi-config: "
+    local PIN_FILE=/etc/config/wifi-config-pin
+    [ -f "$PIN_FILE" ] && wifi_config_pin="-p $(cat $PIN_FILE)"
+    [ -f "$WPA_CONF" ] || cp -f "/etc/wpa_supplicant.conf" "$WPA_CONF"
+    devmem 0x200f00f8 32 0x1
+    start-stop-daemon -S -q -m -b -p /var/run/wifi-config.pid \
+		-x/usr/sbin/wifi-config -- -iwlan0 -l1 -l3 -k62 \
+		-c"$WPA_CONF" "$wifi_config_pin"
+    [ $? = 0 ] && echo "OK" || echo "FAIL"
+}
+
+stop() {
+    printf "Stopping wifi-config: "
+    start-stop-daemon -K -q -p /var/run/wifi-config.pid \
+		-x /usr/sbin/wifi-config
+    [ $? = 0 ] && echo "OK" || echo "FAIL"
+}
+
+case "$1" in
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    restart|reload)
+        stop
+        start
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart}"
+        exit 1
+esac
+
+exit $?

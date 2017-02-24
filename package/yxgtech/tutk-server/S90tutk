@@ -1,0 +1,39 @@
+#!/bin/sh
+#
+# Start tutk-server....
+#
+
+start() {
+    printf "Starting tutk-server: "
+    deviceid=$(fw_printenv -n deviceid)
+    stream_uri="rtsp://127.0.0.1/0"
+    start-stop-daemon -S -q -m -b -p /var/run/tutk-server.pid \
+		-x /usr/bin/tutk-server -- \
+		-p /etc/config/tutk-passwd "$deviceid" "$stream_uri"
+    [ $? = 0 ] && echo "OK" || echo "FAIL"
+}
+
+stop() {
+    printf "Stopping tutk-server: "
+    start-stop-daemon -K -q -p /var/run/tutk-server.pid \
+		-x /usr/bin/tutk-server
+    [ $? = 0 ] && echo "OK" || echo "FAIL"
+}
+
+case "$1" in
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    restart|reload)
+        stop
+        start
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart}"
+        exit 1
+esac
+
+exit $?

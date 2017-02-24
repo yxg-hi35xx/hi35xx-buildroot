@@ -1,0 +1,40 @@
+#!/bin/sh
+#
+# Start ttxserver....
+#
+
+start() {
+    printf "Starting ttxserver: "
+    . /etc/config/ttxserver.conf
+    deviceid=$(fw_printenv -n deviceid)
+    start-stop-daemon -S -q -m -b -p /var/run/ttxserver.pid \
+		-x /usr/bin/ttxserver -- -s $server \
+		-p $port -d $deviceid \
+		rtsp://127.0.0.1/0
+    [ $? = 0 ] && echo "OK" || echo "FAIL"
+}
+
+stop() {
+    printf "Stopping ttxserver: "
+    start-stop-daemon -K -q -p /var/run/ttxserver.pid \
+		-x /usr/bin/ttxserver
+    [ $? = 0 ] && echo "OK" || echo "FAIL"
+}
+
+case "$1" in
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    restart|reload)
+        stop
+        start
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart}"
+        exit 1
+esac
+
+exit $?
