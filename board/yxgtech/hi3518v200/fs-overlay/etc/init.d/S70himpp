@@ -4,9 +4,7 @@
 #
 
 HIMPP_PREFIX=/usr
-SENSOR_TYPE=$(fw_printenv sensor_type 2>/dev/null)
-SENSOR_TYPE=${SENSOR_TYPE:12}
-SENSOR_TYPE=${SENSOR_TYPE:-ar0130}
+SENSOR_TYPE=$(. /lib/scripts/hardware.sh; detect_sensor_type)
 
 start() {
     (
