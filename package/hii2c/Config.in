@@ -1,0 +1,4 @@
+config BR2_PACKAGE_HII2C
+	bool "hii2c"
+	help
+	  I2C read/write tools for hisilicon platform.
