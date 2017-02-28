@@ -1,8 +1,9 @@
 #!/bin/sh
 
 VERSION="$(sed -nre "s/version=(.*)/\1/p" ${TARGET_DIR}/etc/version)"
-BUILDID="$(sed -nre "s/build=(.*)/\1/p" ${TARGET_DIR}/etc/version)"
-OUTFILE="ipcam-fw-${VERSION}-${BUILDID::8}.bin"
+LOCALVER="$(sed -nre "s/localver=(.*)/\1/p" ${TARGET_DIR}/etc/version)"
+BUILD="$(sed -nre "s/build=(.*)/\1/p" ${TARGET_DIR}/etc/version)"
+OUTFILE="ipcam-${VERSION}-${LOCALVER}-${BUILD::8}.fw.bin"
 IMAGEDIR=$1
 shift
 
