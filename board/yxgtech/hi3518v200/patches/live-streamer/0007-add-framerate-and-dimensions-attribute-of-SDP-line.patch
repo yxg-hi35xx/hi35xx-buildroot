@@ -1,0 +1,82 @@
+From 449d5f6f2e765ce60aa9c1fea021f03c6cda6f5a Mon Sep 17 00:00:00 2001
+From: Watson Xu <xuhuashan@gmail.com>
+Date: Thu, 5 Jan 2017 14:53:48 +0800
+Subject: [PATCH 07/10] add framerate and dimensions attribute of SDP line
+
+---
+ src/ipcam-media-iface.h                    |  2 ++
+ src/platform/hi3518v200mpp/himpp-media.cpp | 10 ++++++++++
+ src/platform/hi3518v200mpp/himpp-media.h   |  2 ++
+ src/rtsp-server/LiveStreamInput.cpp        |  9 ++++++++-
+ 4 files changed, 22 insertions(+), 1 deletion(-)
+
+diff --git a/src/ipcam-media-iface.h b/src/ipcam-media-iface.h
+index 0d2f29d..89c70a8 100644
+--- a/src/ipcam-media-iface.h
++++ b/src/ipcam-media-iface.h
+@@ -338,6 +338,8 @@ public:
+     virtual ~IVideoStream() {}
+     virtual IVideoEncoder::EncodingType getEncoding() = 0;
+     virtual uint32_t getBitrate() = 0;
++    virtual uint32_t getFramerate() = 0;
++    virtual ImageResolution getResolution() = 0;
+     virtual bool registerConsumer(StreamDataConsumer *consumer) = 0;
+     virtual bool unregisterConsumer(StreamDataConsumer *consumer) = 0;
+     virtual void enableStreaming() = 0;
+diff --git a/src/platform/hi3518v200mpp/himpp-media.cpp b/src/platform/hi3518v200mpp/himpp-media.cpp
+index 4c37932..b0a8f08 100644
+--- a/src/platform/hi3518v200mpp/himpp-media.cpp
++++ b/src/platform/hi3518v200mpp/himpp-media.cpp
+@@ -1171,6 +1171,16 @@ uint32_t HimppVideoStream::getBitrate()
+ 	return _venc_chan.getBitrate();
+ }
+ 
++uint32_t HimppVideoStream::getFramerate()
++{
++	return _venc_chan.getFramerate();
++}
++
++ImageResolution HimppVideoStream::getResolution()
++{
++	return _venc_chan.getResolution();
++}
++
+ bool HimppVideoStream::registerConsumer(StreamDataConsumer *consumer)
+ {
+ 	_consumer = consumer;
+diff --git a/src/platform/hi3518v200mpp/himpp-media.h b/src/platform/hi3518v200mpp/himpp-media.h
+index 1dfb5e8..c40dffe 100644
+--- a/src/platform/hi3518v200mpp/himpp-media.h
++++ b/src/platform/hi3518v200mpp/himpp-media.h
+@@ -273,6 +273,8 @@ public:
+ 
+     IVideoEncoder::EncodingType getEncoding();
+     uint32_t getBitrate();
++    uint32_t getFramerate();
++    ImageResolution getResolution();
+     bool registerConsumer(StreamDataConsumer *consumer);
+     bool unregisterConsumer(StreamDataConsumer *consumer);
+     void enableStreaming();
+diff --git a/src/rtsp-server/LiveStreamInput.cpp b/src/rtsp-server/LiveStreamInput.cpp
+index b686ce4..21494d4 100644
+--- a/src/rtsp-server/LiveStreamInput.cpp
++++ b/src/rtsp-server/LiveStreamInput.cpp
+@@ -170,7 +170,14 @@ void LiveVideoServerMediaSubsession::checkForAuxSDPLine1()
+         // Signal the event loop that we're done:
+         setDoneFlag();
+     } else if (fDummyRTPSink != NULL && (dasl = fDummyRTPSink->auxSDPLine()) != NULL) {
+-        fAuxSDPLine = strDup(dasl);
++        char framerate[32], dimension[32];
++        ImageResolution res = fVideoStream.getResolution();
++        sprintf(framerate, "a=framerate:%d\r\n", fVideoStream.getFramerate());
++        sprintf(dimension, "a=x-dimensions:%d,%d\r\n", res.Width, res.Height);
++        fAuxSDPLine = new char[strlen(dasl) + strlen(framerate) + strlen(dimension) + 1];
++        if (fAuxSDPLine != NULL) {
++            sprintf(fAuxSDPLine, "%s%s%s", dasl, framerate, dimension);
++        }
+         fDummyRTPSink = NULL;
+ 
+         // Signal the event loop that we're done:
+-- 
+2.9.3
+

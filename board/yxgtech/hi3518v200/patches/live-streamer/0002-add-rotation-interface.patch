@@ -1,0 +1,510 @@
+From 2d2073859f490d07045a28180c77f6b4ea7f5ed7 Mon Sep 17 00:00:00 2001
+From: Watson Xu <xuhuashan@gmail.com>
+Date: Fri, 18 Nov 2016 11:51:13 +0800
+Subject: [PATCH 02/10] add rotation interface
+
+---
+ src/dbus/dbus-video-source.cpp                  | 11 ++++
+ src/dbus/video-source-introspect.xml            |  1 +
+ src/ipcam-media-iface.h                         |  2 +
+ src/platform/hi3518v200mpp/himpp-media.cpp      | 38 ++++++++++++++
+ src/platform/hi3518v200mpp/himpp-media.h        |  2 +
+ src/platform/hi3518v200mpp/himpp-object.cpp     | 17 +++++++
+ src/platform/hi3518v200mpp/himpp-object.h       |  8 ++-
+ src/platform/hi3518v200mpp/himpp-video-venc.cpp | 67 ++++++++++++++-----------
+ src/platform/hi3518v200mpp/himpp-video-venc.h   |  2 +-
+ src/platform/hi3518v200mpp/himpp-video-viu.cpp  | 63 ++++++++++++++++++-----
+ src/platform/hi3518v200mpp/himpp-video-viu.h    |  4 +-
+ src/platform/hi3518v200mpp/himpp-video-vpss.cpp | 13 +++--
+ src/platform/hi3518v200mpp/himpp-video-vpss.h   |  1 -
+ 13 files changed, 171 insertions(+), 58 deletions(-)
+
+diff --git a/src/dbus/dbus-video-source.cpp b/src/dbus/dbus-video-source.cpp
+index 63fec99..d9f1e20 100644
+--- a/src/dbus/dbus-video-source.cpp
++++ b/src/dbus/dbus-video-source.cpp
+@@ -158,6 +158,17 @@ VideoSource::VideoSource
+         {
+             _video_source->getImaging().setSharpness((uint32_t)value);
+         });
++    DEFINE_PROP(IMAGING_INTERFACE ".Rotation",
++        [this](DBus::InterfaceAdaptor &interface,
++           const std::string &property, DBus::Variant &value)
++        {
++            value.writer().append_uint32(_video_source->getImaging().getRotation());
++        },
++        [this](DBus::InterfaceAdaptor &interface,
++           const std::string &property, const DBus::Variant &value)
++        {
++            _video_source->getImaging().setRotation((uint32_t)value);
++        });
+     DEFINE_PROP(IMAGING_INTERFACE ".IrCutFilterMode",
+         [this](DBus::InterfaceAdaptor &interface,
+            const std::string &property, DBus::Variant &value)
+diff --git a/src/dbus/video-source-introspect.xml b/src/dbus/video-source-introspect.xml
+index 581c0c1..a6ca839 100644
+--- a/src/dbus/video-source-introspect.xml
++++ b/src/dbus/video-source-introspect.xml
+@@ -12,6 +12,7 @@
+     <property name="Chroma" type="u" access="readwrite"/>
+     <property name="Saturation" type="u" access="readwrite"/>
+     <property name="Sharpness" type="u" access="readwrite"/>
++    <property name="Rotation" type="u" access="readwrite"/>
+     <property name="IrCutFilterMode" type="u" access="readwrite"/>
+   </interface>
+   <interface name="ipcam.Media.VideoSource.Imaging.AntiFlicker">
+diff --git a/src/ipcam-media-iface.h b/src/ipcam-media-iface.h
+index 4b5daed..0d2f29d 100644
+--- a/src/ipcam-media-iface.h
++++ b/src/ipcam-media-iface.h
+@@ -239,6 +239,8 @@ public:
+         virtual void                setSaturation(uint32_t value) = 0;
+         virtual uint32_t            getSharpness() = 0;
+         virtual void                setSharpness(uint32_t value) = 0;
++        virtual uint32_t            getRotation() = 0;
++        virtual void                setRotation(uint32_t value) = 0;
+         virtual IrCutFilterMode     getIrCutFilterMode() = 0;
+         virtual void                setIrCutFilterMode(IrCutFilterMode value) = 0;
+ 
+diff --git a/src/platform/hi3518v200mpp/himpp-media.cpp b/src/platform/hi3518v200mpp/himpp-media.cpp
+index c0687c8..f3554a6 100644
+--- a/src/platform/hi3518v200mpp/himpp-media.cpp
++++ b/src/platform/hi3518v200mpp/himpp-media.cpp
+@@ -142,6 +142,44 @@ void HimppVideoSource::Imaging::setSharpness(uint32_t value)
+ 	throw IpcamError("Not implemented");
+ }
+ 
++uint32_t HimppVideoSource::Imaging::getRotation()
++{
++	switch (_media._vi_chan0.getRotation()) {
++	case ROTATE_90:
++		return 90;
++	case ROTATE_180:
++		return 180;
++	case ROTATE_270:
++		return 270;
++	default:
++		break;
++	}
++	return 0;
++}
++
++void HimppVideoSource::Imaging::setRotation(uint32_t value)
++{
++	if (value % 90)
++		throw IpcamError("Only support 0/90/180/270 degree rotation");
++
++	_media._vi_chan0.setRotation(value % 360);
++	bool vi_enabled = _media._vi_chan0.isEnabled();
++
++	// keep vi enabled if vi is already enabled
++	if (vi_enabled) _media._vi_chan0.enable();
++
++	if (_media._venc_chan0.isEnabled()) {
++		_media._venc_chan0.disable();
++		_media._venc_chan0.enable();
++	}
++	if (_media._venc_chan1.isEnabled()) {
++		_media._venc_chan1.disable();
++		_media._venc_chan1.enable();
++	}
++
++	if (vi_enabled) _media._vi_chan0.disable();
++}
++
+ IVideoSource::Imaging::IrCutFilterMode
+ HimppVideoSource::Imaging::getIrCutFilterMode()
+ {
+diff --git a/src/platform/hi3518v200mpp/himpp-media.h b/src/platform/hi3518v200mpp/himpp-media.h
+index c552aeb..1dfb5e8 100644
+--- a/src/platform/hi3518v200mpp/himpp-media.h
++++ b/src/platform/hi3518v200mpp/himpp-media.h
+@@ -167,6 +167,8 @@ public:
+         void        setSaturation(uint32_t value);
+         uint32_t    getSharpness();
+         void        setSharpness(uint32_t value);
++        uint32_t    getRotation();
++        void        setRotation(uint32_t value);
+         IVideoSource::Imaging::IrCutFilterMode getIrCutFilterMode();
+         void        setIrCutFilterMode(IVideoSource::Imaging::IrCutFilterMode value);
+ 
+diff --git a/src/platform/hi3518v200mpp/himpp-object.cpp b/src/platform/hi3518v200mpp/himpp-object.cpp
+index 1c5de04..482d99b 100644
+--- a/src/platform/hi3518v200mpp/himpp-object.cpp
++++ b/src/platform/hi3518v200mpp/himpp-object.cpp
+@@ -80,3 +80,20 @@ bool HimppObject::isEnabled()
+ {
+     return (enableCount > 0);
+ }
++
++HimppVideoObject::HimppVideoObject(HimppObject *base)
++  : HimppObject(base)
++{
++}
++
++HimppVideoObject* HimppVideoObject::videoSource()
++{
++    return dynamic_cast<HimppVideoObject*>(source());
++}
++
++uint32_t HimppVideoObject::getRotation()
++{
++    if (videoSource())
++        return videoSource()->getRotation();
++    return 0;
++}
+diff --git a/src/platform/hi3518v200mpp/himpp-object.h b/src/platform/hi3518v200mpp/himpp-object.h
+index 3456700..9e4dc1f 100644
+--- a/src/platform/hi3518v200mpp/himpp-object.h
++++ b/src/platform/hi3518v200mpp/himpp-object.h
+@@ -49,13 +49,11 @@ private:
+ class HimppVideoObject : public HimppObject
+ {
+ public:
+-    HimppVideoObject(HimppObject *base) : HimppObject(base) {}
+-    HimppVideoObject* videoSource() { return dynamic_cast<HimppVideoObject*>(source()); }
+-    virtual bool setResolution(ImageResolution &res) = 0;
++    HimppVideoObject(HimppObject *base);
++    HimppVideoObject* videoSource();
+     virtual ImageResolution getResolution() = 0;
+-    virtual bool setFramerate(uint32_t fps) = 0;
+     virtual uint32_t getFramerate() = 0;
++    virtual uint32_t getRotation();
+ };
+ 
+ #endif // _HIMPP_OBJECT_H_
+-
+diff --git a/src/platform/hi3518v200mpp/himpp-video-venc.cpp b/src/platform/hi3518v200mpp/himpp-video-venc.cpp
+index 3a5625f..c5cdfa2 100644
+--- a/src/platform/hi3518v200mpp/himpp-video-venc.cpp
++++ b/src/platform/hi3518v200mpp/himpp-video-venc.cpp
+@@ -30,12 +30,6 @@ HimppVencChan::HimppVencChan(HimppVideoObject *source, VENC_GRP grp, VENC_CHN ch
+       _bitrate(2048),
+       _gop(30)
+ {
+-    _crop_cfg.bEnable = HI_FALSE;
+-    _crop_cfg.stRect.u32Width = 0;
+-    _crop_cfg.stRect.u32Height = 0;
+-    _crop_cfg.stRect.s32X = 0;
+-    _crop_cfg.stRect.s32Y = 0;
+-
+     _mpp_chn.enModId = HI_ID_VENC;
+     _mpp_chn.s32DevId = 0;
+     _mpp_chn.s32ChnId = chn;
+@@ -138,17 +132,16 @@ HimppVencChan::operator MPP_CHN_S* ()
+     return &_mpp_chn;
+ }
+ 
+-bool HimppVencChan::setResolution(ImageResolution &res)
++bool HimppVencChan::prepareVencCropCfg(VENC_CROP_CFG_S &crop_cfg)
+ {
+-    _resolution = res;
+-
+     // Calculate the crop configuration
+-    ImageResolution &out = res;
++    ImageResolution out = (videoSource()->getRotation() % 180) ? \
++        ImageResolution(_resolution.Height, _resolution.Width) : _resolution;
+     ImageResolution in = videoSource()->getResolution();
+-    RECT_S &rect = _crop_cfg.stRect;
++    RECT_S &rect = crop_cfg.stRect;
+     if (in.Width * out.Height > out.Width * in.Height) {
+         // crop width
+-        _crop_cfg.bEnable = HI_TRUE;
++        crop_cfg.bEnable = HI_TRUE;
+         rect.u32Height = in.Height;
+         rect.u32Width = out.Width * in.Height / out.Height;
+         rect.s32X = ((in.Width - rect.u32Width) / 2) & 0xFFFFFFF0;
+@@ -156,7 +149,7 @@ bool HimppVencChan::setResolution(ImageResolution &res)
+     }
+     else if (in.Width * out.Height < out.Width * in.Height) {
+         // crop height
+-        _crop_cfg.bEnable = HI_TRUE;
++        crop_cfg.bEnable = HI_TRUE;
+         rect.u32Width = in.Width;
+         rect.u32Height = out.Height * in.Width / out.Width;
+         rect.s32X = 0;
+@@ -164,13 +157,20 @@ bool HimppVencChan::setResolution(ImageResolution &res)
+     }
+     else {
+         // crop is not necessary
+-        _crop_cfg.bEnable = HI_FALSE;
++        crop_cfg.bEnable = HI_FALSE;
+         rect.u32Width = 0;
+         rect.u32Height = 0;
+         rect.s32X = 0;
+         rect.s32Y = 0;
+     }
+ 
++    return true;
++}
++
++bool HimppVencChan::setResolution(ImageResolution &res)
++{
++    _resolution = res;
++
+     if (isEnabled()) {
+         disableObject();
+         enableObject();
+@@ -215,18 +215,23 @@ void HimppVencChan::delVideoRegion(HimppVideoRegion *region)
+ 
+ bool HimppVencChan::prepareVencChnAttr(VENC_CHN_ATTR_S &attr)
+ {
++    //ImageResolution ri = videoSource()->getResolution();
++    uint32_t rotate = videoSource()->getRotation();
+     HI_U32 stattime;
+     stattime = _gop / _framerate;
+     stattime = stattime > 0 ? stattime : 1;
+ 
++    ImageResolution ro = (rotate % 180) ? \
++        ImageResolution(_resolution.Height, _resolution.Width) : _resolution;
++
+     switch (_encoding) {
+     case IVideoEncoder::H264:
+         attr.stVeAttr.enType = PT_H264;
+-        attr.stVeAttr.stAttrH264e.u32MaxPicWidth = _resolution.Width;
+-        attr.stVeAttr.stAttrH264e.u32MaxPicHeight = _resolution.Height;
+-        attr.stVeAttr.stAttrH264e.u32BufSize = _resolution.Width * _resolution.Height * 2;
+-        attr.stVeAttr.stAttrH264e.u32PicWidth = _resolution.Width;
+-        attr.stVeAttr.stAttrH264e.u32PicHeight = _resolution.Height;
++        attr.stVeAttr.stAttrH264e.u32MaxPicWidth = ro.Width;
++        attr.stVeAttr.stAttrH264e.u32MaxPicHeight = ro.Height;
++        attr.stVeAttr.stAttrH264e.u32BufSize = ro.Width * ro.Height * 2;
++        attr.stVeAttr.stAttrH264e.u32PicWidth = ro.Width;
++        attr.stVeAttr.stAttrH264e.u32PicHeight = ro.Height;
+         attr.stVeAttr.stAttrH264e.u32Profile = _h264profile;
+         attr.stVeAttr.stAttrH264e.bByFrame = HI_FALSE;
+         attr.stVeAttr.stAttrH264e.u32BFrameNum = 0;
+@@ -267,11 +272,11 @@ bool HimppVencChan::prepareVencChnAttr(VENC_CHN_ATTR_S &attr)
+         break;
+     case IVideoEncoder::MJPEG:
+         attr.stVeAttr.enType = PT_MJPEG;
+-        attr.stVeAttr.stAttrMjpeg.u32MaxPicWidth = _resolution.Width;
+-        attr.stVeAttr.stAttrMjpeg.u32MaxPicHeight = _resolution.Height;
+-        attr.stVeAttr.stAttrMjpeg.u32BufSize = _resolution.Width * _resolution.Height * 2;
+-        attr.stVeAttr.stAttrMjpeg.u32PicWidth = _resolution.Width;
+-        attr.stVeAttr.stAttrMjpeg.u32PicHeight = _resolution.Height;
++        attr.stVeAttr.stAttrMjpeg.u32MaxPicWidth = ro.Width;
++        attr.stVeAttr.stAttrMjpeg.u32MaxPicHeight = ro.Height;
++        attr.stVeAttr.stAttrMjpeg.u32BufSize = ro.Width * ro.Height * 2;
++        attr.stVeAttr.stAttrMjpeg.u32PicWidth = ro.Width;
++        attr.stVeAttr.stAttrMjpeg.u32PicHeight = ro.Height;
+         attr.stVeAttr.stAttrMjpeg.bByFrame = HI_TRUE;
+         // Rate Control Attribute
+         switch (_rcmode) {
+@@ -304,11 +309,11 @@ bool HimppVencChan::prepareVencChnAttr(VENC_CHN_ATTR_S &attr)
+         break;
+     case IVideoEncoder::JPEG:
+         attr.stVeAttr.enType = PT_JPEG;
+-        attr.stVeAttr.stAttrJpeg.u32MaxPicWidth = _resolution.Width;
+-        attr.stVeAttr.stAttrJpeg.u32MaxPicHeight = _resolution.Height;
+-        attr.stVeAttr.stAttrJpeg.u32BufSize = _resolution.Width * _resolution.Height * 2;
+-        attr.stVeAttr.stAttrJpeg.u32PicWidth = _resolution.Width;
+-        attr.stVeAttr.stAttrJpeg.u32PicHeight = _resolution.Height;
++        attr.stVeAttr.stAttrJpeg.u32MaxPicWidth = ro.Width;
++        attr.stVeAttr.stAttrJpeg.u32MaxPicHeight = ro.Height;
++        attr.stVeAttr.stAttrJpeg.u32BufSize = ro.Width * ro.Height * 2;
++        attr.stVeAttr.stAttrJpeg.u32PicWidth = ro.Width;
++        attr.stVeAttr.stAttrJpeg.u32PicHeight = ro.Height;
+         attr.stVeAttr.stAttrJpeg.bByFrame = HI_TRUE;
+         attr.stVeAttr.stAttrJpeg.bSupportDCF = HI_FALSE;
+         break;
+@@ -348,7 +353,9 @@ bool HimppVencChan::enableObject()
+         }
+     }
+ 
+-    if ((s32Ret = HI_MPI_VENC_SetCrop(_chnid, &_crop_cfg)) != HI_SUCCESS) {
++    VENC_CROP_CFG_S crop_cfg;
++    prepareVencCropCfg(crop_cfg);
++    if ((s32Ret = HI_MPI_VENC_SetCrop(_chnid, &crop_cfg)) != HI_SUCCESS) {
+         HIMPP_PRINT("HI_MPI_VENC_SetCrop [%d] faild [%#x]!\n",
+                      _chnid, s32Ret);
+         goto err_destroy_chn;
+diff --git a/src/platform/hi3518v200mpp/himpp-video-venc.h b/src/platform/hi3518v200mpp/himpp-video-venc.h
+index f4dc9ba..e3e8340 100644
+--- a/src/platform/hi3518v200mpp/himpp-video-venc.h
++++ b/src/platform/hi3518v200mpp/himpp-video-venc.h
+@@ -71,11 +71,11 @@ private:
+     uint32_t                    _framerate;
+     uint32_t                    _bitrate;
+     uint32_t                    _gop;
+-    VENC_CROP_CFG_S             _crop_cfg;
+ 
+     std::list<HimppVideoRegion*> _regions;
+ 
+     bool prepareVencChnAttr(VENC_CHN_ATTR_S &attr);
++    bool prepareVencCropCfg(VENC_CROP_CFG_S &crop_cfg);
+ };
+ 
+ #endif // _HIMPP_VIDEO_VENC_H_
+diff --git a/src/platform/hi3518v200mpp/himpp-video-viu.cpp b/src/platform/hi3518v200mpp/himpp-video-viu.cpp
+index 3138a19..6a2fe7b 100644
+--- a/src/platform/hi3518v200mpp/himpp-video-viu.cpp
++++ b/src/platform/hi3518v200mpp/himpp-video-viu.cpp
+@@ -323,7 +323,16 @@ bool HimppViChan::setResolution(ImageResolution &res)
+ 
+ ImageResolution HimppViChan::getResolution()
+ {
+-    return _vi_dev->getResolution();
++    ImageResolution ri = _vi_dev->getResolution();
++
++    switch (_rotate) {
++    case ROTATE_90:
++    case ROTATE_270:
++        return ImageResolution(ri.Height, ri.Width);
++    default:
++        break;
++    }
++    return ri;
+ }
+ 
+ bool HimppViChan::setFramerate(uint32_t fps)
+@@ -341,19 +350,49 @@ HimppViChan::operator MPP_CHN_S* ()
+     return &_mpp_chn;
+ }
+ 
+-ROTATE_E HimppViChan::getRotate()
+-{
+-    return _rotate;
+-}
+-
+-void HimppViChan::setRotate(ROTATE_E value)
+-{
+-    if (value < 0 || value >= ROTATE_BUTT)
+-        throw IpcamError("Invalid Value");
++uint32_t HimppViChan::getRotation()
++{
++    uint32_t rot = 0;
++    switch (_rotate) {
++    case ROTATE_90:
++        rot = 90;
++        break;
++    case ROTATE_180:
++        rot = 180;
++        break;
++    case ROTATE_270:
++        rot = 270;
++        break;
++    default:
++        break;
++    }
++    return rot;
++}
++
++void HimppViChan::setRotation(uint32_t value)
++{
++    ROTATE_E rot = ROTATE_NONE;
++
++    switch (value % 360) {
++    case 0:
++        rot = ROTATE_NONE;
++        break;
++    case 90:
++        rot = ROTATE_90;
++        break;
++    case 180:
++        rot = ROTATE_180;
++        break;
++    case 270:
++        rot = ROTATE_270;
++        break;
++    default:
++        throw IpcamError("Invalid value");
++    }
+ 
+     if (isEnabled()) {
+         ROTATE_E old_val = _rotate;
+-        _rotate = value;
++        _rotate = rot;
+         if (!disableObject() || !enableObject()) {
+             _rotate = old_val;
+             disableObject();
+@@ -362,7 +401,7 @@ void HimppViChan::setRotate(ROTATE_E value)
+         }
+     }
+ 
+-    _rotate = value;
++    _rotate = rot;
+ }
+ 
+ bool HimppViChan::getMirror()
+diff --git a/src/platform/hi3518v200mpp/himpp-video-viu.h b/src/platform/hi3518v200mpp/himpp-video-viu.h
+index f2f08cb..f3ba5a3 100644
+--- a/src/platform/hi3518v200mpp/himpp-video-viu.h
++++ b/src/platform/hi3518v200mpp/himpp-video-viu.h
+@@ -77,8 +77,8 @@ public:
+     bool setFramerate(uint32_t);
+     uint32_t getFramerate();
+ 
+-    ROTATE_E getRotate();
+-    void setRotate(ROTATE_E);
++    uint32_t getRotation();
++    void setRotation(uint32_t);
+     bool getMirror();
+     void setMirror(bool);
+     bool getFlip();
+diff --git a/src/platform/hi3518v200mpp/himpp-video-vpss.cpp b/src/platform/hi3518v200mpp/himpp-video-vpss.cpp
+index fd2a00e..b407216 100644
+--- a/src/platform/hi3518v200mpp/himpp-video-vpss.cpp
++++ b/src/platform/hi3518v200mpp/himpp-video-vpss.cpp
+@@ -133,7 +133,6 @@ bool HimppVpssGroup::disableObject()
+ 
+ HimppVpssChan::HimppVpssChan(HimppVpssGroup *group, VPSS_CHN chn)
+     : HimppVideoObject(group), _vpss_group(group), _chnid(chn),
+-      _resolution(group->getResolution()),
+       _framerate(group->getFramerate())
+ {
+     _mpp_chn.enModId = HI_ID_VPSS;
+@@ -157,14 +156,12 @@ HimppVpssChan::operator MPP_CHN_S* ()
+ 
+ bool HimppVpssChan::setResolution(ImageResolution &res)
+ {
+-    _resolution = res;
+-
+-    return true;
++    return false;
+ }
+ 
+ ImageResolution HimppVpssChan::getResolution()
+ {
+-    return _resolution;
++    return videoSource()->getResolution();
+ }
+ 
+ bool HimppVpssChan::setFramerate(uint32_t fps)
+@@ -186,6 +183,7 @@ bool HimppVpssChan::enableObject()
+     VPSS_CHN_ATTR_S chn_attr;
+     VPSS_CHN_MODE_S chn_mode;
+     VPSS_EXT_CHN_ATTR_S ext_chn_attr;
++    ImageResolution ri = getResolution();
+     HI_S32 s32Ret;
+ 
+     switch (_type) {
+@@ -202,10 +200,11 @@ bool HimppVpssChan::enableObject()
+             return false;
+         }
+         chn_mode.enChnMode = VPSS_CHN_MODE_USER;
+-        chn_mode.u32Width = _resolution.Width;
+-        chn_mode.u32Height = _resolution.Height;
++        chn_mode.u32Width = ri.Width;
++        chn_mode.u32Height = ri.Height;
+         chn_mode.bDouble = HI_FALSE;
+         chn_mode.enPixelFormat = HIMPP_PIXEL_FORMAT;
++        chn_mode.enCompressMode = COMPRESS_MODE_NONE;
+         if ((s32Ret = HI_MPI_VPSS_SetChnMode(grp, chn, &chn_mode)) != HI_SUCCESS) {
+             HIMPP_PRINT("HI_MPI_VPSS_SetChnMode %d-%d failed %#x\n",
+                         grp, chn, s32Ret);
+diff --git a/src/platform/hi3518v200mpp/himpp-video-vpss.h b/src/platform/hi3518v200mpp/himpp-video-vpss.h
+index 39ee51e..6cf3195 100644
+--- a/src/platform/hi3518v200mpp/himpp-video-vpss.h
++++ b/src/platform/hi3518v200mpp/himpp-video-vpss.h
+@@ -69,7 +69,6 @@ private:
+     VPSS_CHN            _chnid;
+     VPSS_CHN_TYPE       _type;
+     MPP_CHN_S           _mpp_chn;
+-    ImageResolution     _resolution;
+     uint32_t            _framerate;
+ };
+ 
+-- 
+2.9.3
+
