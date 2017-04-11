@@ -31,4 +31,5 @@ nfsargs=run commonargs; setenv bootargs ${bootargs} root=/dev/nfs nfsroot=${serv
 addip=setenv bootargs ${bootargs} ip=${ipaddr}:${serverip}:${gatewayip}:${netmask}:${hostname}:${netdev}:off
 nfsboot=echo Booting from NFS...; run nfsargs; run addip; tftp ${loadaddr} ${bootfile} && bootm ${loadaddr}
 autoboot=if run flashboot; then; else run nfsboot; fi
-bootcmd=run autoboot
+loadupdatescript=fatload mmc 0 ${loadaddr} update.scr
+bootcmd=if mmc list; then if run loadupdatescript; then source ${loadaddr}; fi; fi; run autoboot
