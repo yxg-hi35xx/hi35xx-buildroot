@@ -1,0 +1,37 @@
+From d956c19cf6263516e8d7e1702b9acaba1e08b99f Mon Sep 17 00:00:00 2001
+From: Watson Xu <xuhuashan@gmail.com>
+Date: Sun, 30 Apr 2017 01:04:05 +0800
+Subject: [PATCH 3/3] adjust the NR parameter
+
+YSFSTR = 140
+YTFStr = 64
+---
+ src/platform/hi3518v200/himpp-video-vpss.cpp | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/src/platform/hi3518v200/himpp-video-vpss.cpp b/src/platform/hi3518v200/himpp-video-vpss.cpp
+index e2e4182..6e431f7 100644
+--- a/src/platform/hi3518v200/himpp-video-vpss.cpp
++++ b/src/platform/hi3518v200/himpp-video-vpss.cpp
+@@ -55,6 +55,18 @@ void HimppVpssGroup::doEnableElement()
+ 		throw IpcamError("failed to enable vpss group");
+ 	}
+ 
++	VPSS_NR_PARAM_U nrparam;
++	if ((s32Ret = HI_MPI_VPSS_GetNRParam(_grpid, &nrparam)) == HI_SUCCESS) {
++		nrparam.stNRParam_V1.s32YSFStr = 140;
++		nrparam.stNRParam_V1.s32YTFStr = 64;
++		if ((s32Ret = HI_MPI_VPSS_SetNRParam(_grpid, &nrparam)) != HI_SUCCESS) {
++			HIMPP_PRINT("HI_MPI_VPSS_SetNRParam %d failed [%#x]\n", _grpid, s32Ret);
++		}
++	}
++	else {
++		HIMPP_PRINT("HI_MPI_VPSS_GetNRParam %d failed [%#x]\n", _grpid, s32Ret);
++	}
++
+ 	if ((s32Ret = HI_MPI_VPSS_StartGrp(_grpid)) != HI_SUCCESS) {
+ 		HIMPP_PRINT("HI_MPI_VPSS_CreateGrp %d failed [%#x]\n",
+ 		            _grpid, s32Ret);
+-- 
+2.9.3
+

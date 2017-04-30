@@ -8,7 +8,7 @@ wsapi.request = require "wsapi.request"
 local sdbus = require 'simpledbus'
 local bus = sdbus.SystemBus()
 local vs0 = bus:auto_proxy('ipcam.Media', '/ipcam/Media/VideoSource0')
-local vs0img = vs0['ipcam.Media.VideoSource.Imaging']
+local vs0rot = vs0['ipcam.Media.VideoSource.Imaging.Rotation']
 
 function run(wsapi_env)
   local headers = { ["Content-type"] = "application/json" }
@@ -18,12 +18,12 @@ function run(wsapi_env)
 
   if req.method == "POST" then
     local ri = json.decode(req.POST.post_data)
-    if ri.angle ~= nil then
-      vs0img.Rotation = ri.angle
-    end
+    if ri.mode ~= nil then vs0rot.Mode = ri.mode end
+    if ri.degree ~= nil then vs0rot.Degree = ri.degree end
     resp.status = "OK"
   elseif req.method == "GET" then
-    resp.angle = vs0img.Rotation
+    resp.mode = vs0rot.Mode
+    resp.degree = vs0rot.Degree
   else
     resp.status = "FAIL"
     resp.message = "Unsupported method"

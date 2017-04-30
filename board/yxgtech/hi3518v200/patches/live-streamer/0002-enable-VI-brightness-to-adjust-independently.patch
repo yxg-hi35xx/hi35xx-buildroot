@@ -1,0 +1,37 @@
+From 4aa29499900bfa57cc6fd4b38a8d2d0c83fd786d Mon Sep 17 00:00:00 2001
+From: Watson Xu <xuhuashan@gmail.com>
+Date: Sun, 30 Apr 2017 00:54:58 +0800
+Subject: [PATCH 2/3] enable VI brightness to adjust independently.
+
+so that the brightness does not change according to the
+contrast adjustment
+---
+ src/platform/hi3518v200/himpp-video-viu.cpp | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/src/platform/hi3518v200/himpp-video-viu.cpp b/src/platform/hi3518v200/himpp-video-viu.cpp
+index 26198a2..a80746a 100644
+--- a/src/platform/hi3518v200/himpp-video-viu.cpp
++++ b/src/platform/hi3518v200/himpp-video-viu.cpp
+@@ -150,6 +150,18 @@ void HimppViDev::doEnableElement()
+ 	HI_S32 s32Ret;
+ 	VI_DEV_ATTR_S *dev_attr;
+ 
++	VI_MOD_PARAM_S param;
++	if ((s32Ret = HI_MPI_VI_GetModParam(&param)) == HI_SUCCESS) {
++		param.bLumaExtendEn = HI_TRUE;
++		param.bContrastModeEn = HI_TRUE;
++		if ((s32Ret = HI_MPI_VI_SetModParam(&param)) != HI_SUCCESS) {
++			HIMPP_PRINT("HI_MPI_VI_SetModParam failed [%#x]\n", s32Ret);
++		}
++	}
++	else {
++		HIMPP_PRINT("HI_MPI_VI_SetModParam failed [%#x]\n", s32Ret);
++	}
++
+ 	dev_attr = HIMPP_VIDEO_ISP(source())->videoInputConfig();
+ 	if ((s32Ret = HI_MPI_VI_SetDevAttr(_devid, dev_attr)) != HI_SUCCESS) {
+ 		HIMPP_PRINT("HI_MPI_VI_SetDevAttr %d failed [%#x]\n", _devid, s32Ret);
+-- 
+2.9.3
+
