@@ -1,0 +1,66 @@
+diff -uNr a/liveMedia/AVIFileSink.cpp b/liveMedia/AVIFileSink.cpp
+--- a/liveMedia/AVIFileSink.cpp	2017-04-26 15:37:14.000000000 +0800
++++ b/liveMedia/AVIFileSink.cpp	2017-05-03 13:02:14.515217517 +0800
+@@ -250,6 +250,11 @@
+     haveActiveSubsessions = True;
+     unsigned char* toPtr = ioState->fBuffer->dataEnd();
+     unsigned toSize = ioState->fBuffer->bytesAvailable();
++    // Preserve 4 bytes 'start code' for H264 stream
++    if (strcmp(subsession->codecName(), "H264") == 0) {
++      toPtr += 4;
++      toSize -= 4;
++    }
+     subsessionSource->getNextFrame(toPtr, toSize,
+ 				   afterGettingFrame, ioState,
+ 				   onSourceClosure, ioState);
+@@ -486,6 +491,22 @@
+   if (fBuffer->bytesInUse() == 0) {
+     fBuffer->setPresentationTime(presentationTime);
+   }
++
++  if (strcmp(fOurSubsession.codecName(), "H264") == 0) {
++    unsigned char *framePtr = fBuffer->dataEnd();
++    // Insert a 'start code' (0x00 0x00 0x00 0x01) in front of the frame:
++    framePtr[0] = 0x00; framePtr[1] = 0x00;
++    framePtr[2] = 0x00; framePtr[3] = 0x01;
++    fBuffer->addBytes(4);
++    unsigned char nalu_type = framePtr[4] & 0x1f;
++    // SPS/PPS/SEI packet should be packed into the following IDR frame
++    if ((nalu_type == 6) || (nalu_type == 7) || (nalu_type == 8)) {
++      fBuffer->addBytes(packetDataSize);
++      fOurSink.continuePlaying();
++      return;
++    }
++  }
++  
+   fBuffer->addBytes(packetDataSize);
+ 
+   useFrame(*fBuffer);
+@@ -529,22 +550,18 @@
+   }
+ 
+   // Add an index record for this frame:
++  int firstByte = (strcmp(fOurSubsession.codecName(), "H264") == 0) ? \
++                  frameSource[4] : frameSource[0];
+   AVIIndexRecord* newIndexRecord
+     = new AVIIndexRecord(fAVISubsessionTag, // chunk id
+-			 frameSource[0] == 0x67 ? 0x10 : 0, // flags
++			 firstByte == 0x67 ? 0x10 : 0, // flags
+ 			 fOurSink.fMoviSizePosition + 8 + fOurSink.fNumBytesWritten, // offset (note: 8 == size + 'movi')
+-			 frameSize + 4); // size
++			 frameSize); // size
+   fOurSink.addIndexRecord(newIndexRecord);
+ 
+   // Write the data into the file:
+   fOurSink.fNumBytesWritten += fOurSink.addWord(fAVISubsessionTag);
+-  if (strcmp(fOurSubsession.codecName(), "H264") == 0) {
+-    // Insert a 'start code' (0x00 0x00 0x00 0x01) in front of the frame:
+-    fOurSink.fNumBytesWritten += fOurSink.addWord(4+frameSize);
+-    fOurSink.fNumBytesWritten += fOurSink.addWord(fourChar(0x00, 0x00, 0x00, 0x01));//add start code
+-  } else {
+-    fOurSink.fNumBytesWritten += fOurSink.addWord(frameSize);
+-  }
++  fOurSink.fNumBytesWritten += fOurSink.addWord(frameSize);
+   fwrite(frameSource, 1, frameSize, fOurSink.fOutFid);
+   fOurSink.fNumBytesWritten += frameSize;
+   // Pad to an even length:
