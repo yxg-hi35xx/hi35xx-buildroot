@@ -1,3 +1,4 @@
 source "package/yxgtech/ttxserver/Config.in"
 source "package/yxgtech/tutk-server/Config.in"
 source "package/yxgtech/wifi-config/Config.in"
+source "package/yxgtech/snapshotd/Config.in"
