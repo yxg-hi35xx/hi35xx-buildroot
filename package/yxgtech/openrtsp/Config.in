@@ -1,0 +1,6 @@
+config BR2_PACKAGE_OPENRTSP
+	bool "openRTSP"
+	select BR2_PACKAGE_LIVE555
+	help
+	  A RTSP client application that opens a RTSP URL argument,
+	  and extracts and records the data from each incoming RTP stream.
