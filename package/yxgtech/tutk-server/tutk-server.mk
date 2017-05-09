@@ -4,7 +4,7 @@
 #
 ################################################################################
 
-TUTK_SERVER_VERSION = 0.2.0
+TUTK_SERVER_VERSION = 0.3.1
 TUTK_SERVER_SITE_METHOD = file
 TUTK_SERVER_SITE = $(TOPDIR)/package/yxgtech/tutk-server
 TUTK_SERVER_SOURCE = tutk-server-$(TUTK_SERVER_VERSION).tar.xz
