@@ -21,6 +21,7 @@ along with this library; if not, write to the Free Software Foundation, Inc.,
 // then we don't recommend using this code as a model, because it is too complex (with many options).
 // Instead, we recommend using the "testRTSPClient" application code as a model.
 
+#include <libgen.h>
 #include "playCommon.hh"
 #include "BasicUsageEnvironment.hh"
 #include "GroupsockHelper.hh"
@@ -157,8 +158,11 @@ int main(int argc, char** argv) {
 
 #ifdef USE_SIGNALS
   // Allow ourselves to be shut down gracefully by a SIGHUP or a SIGUSR1:
+  signal(SIGINT, signalHandlerShutdown);
+  signal(SIGTERM, signalHandlerShutdown);
   signal(SIGHUP, signalHandlerShutdown);
   signal(SIGUSR1, signalHandlerShutdown);
+  signal(SIGUSR2, signalHandlerShutdown);
 #endif
 
   // unfortunately we can't use getopt() here, as Windoze doesn't have it
@@ -420,6 +424,25 @@ int main(int argc, char** argv) {
 
     case 'F': { // specify a prefix for the audio and video output files
       fileNamePrefix = argv[2];
+
+      if (fileNamePrefix[strlen(fileNamePrefix) - 1] != '/') {
+        char *prefix = strdup(fileNamePrefix);
+        char *dir = dirname(prefix);
+        char *cmdstr = NULL;
+        if (asprintf(&cmdstr, "mkdir -p %s", dir) > 0) {
+          system(cmdstr);
+          free(cmdstr);
+        }
+	free(prefix);
+      }
+      else {
+        char *cmdstr = NULL;
+        if (asprintf(&cmdstr, "mkdir -p %s", fileNamePrefix) > 0) {
+          system(cmdstr);
+          free(cmdstr);
+        }
+      }
+
       ++argv; --argc;
       break;
     }
@@ -965,8 +988,8 @@ void createOutputFiles(char const* periodicFilenameSuffix) {
 void createPeriodicOutputFiles() {
   // Create a filename suffix that notes the time interval that's being recorded:
   char periodicFileNameSuffix[100];
-  snprintf(periodicFileNameSuffix, sizeof periodicFileNameSuffix, "-%05d-%05d",
-	   fileOutputSecondsSoFar, fileOutputSecondsSoFar + fileOutputInterval);
+  snprintf(periodicFileNameSuffix, sizeof periodicFileNameSuffix, "-%04d",
+	   fileOutputSecondsSoFar / fileOutputInterval + 1);
   createOutputFiles(periodicFileNameSuffix);
 
   // Schedule an event for writing the next output file:
