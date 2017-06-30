@@ -1,0 +1,192 @@
+From bcdc3b51184d89a2b8705bcf0ac7846baf606e16 Mon Sep 17 00:00:00 2001
+From: Watson Xu <xuhuashan@gmail.com>
+Date: Fri, 30 Jun 2017 10:06:50 +0800
+Subject: [PATCH] add Compensation property for Exposure interface.
+
+---
+ src/common/video-source.cpp                 | 24 ++++++++++++++++++++++++
+ src/common/video-source.h                   |  4 ++++
+ src/dbus/dbus-video-source.cpp              | 11 +++++++++++
+ src/dbus/video-source-introspect.xml        |  1 +
+ src/platform/hi3518v200/himpp-video-isp.cpp | 24 +++++++++++++++++++++++-
+ src/platform/hi3518v200/himpp-video-isp.h   |  3 +++
+ 6 files changed, 66 insertions(+), 1 deletion(-)
+
+diff --git a/src/common/video-source.cpp b/src/common/video-source.cpp
+index 6ef174a..02c7afe 100644
+--- a/src/common/video-source.cpp
++++ b/src/common/video-source.cpp
+@@ -194,6 +194,16 @@ void VideoSource::Imaging::Exposure::setMaxExposureTime(uint32_t value)
+ 	throw IpcamError(property_not_implemented);
+ }
+ 
++uint32_t VideoSource::Imaging::Exposure::getCompensation()
++{
++	throw IpcamError(property_not_implemented);
++}
++
++void VideoSource::Imaging::Exposure::setCompensation(uint32_t value)
++{
++	throw IpcamError(property_not_implemented);
++}
++
+ uint32_t VideoSource::Imaging::Exposure::getMinGain()
+ {
+ 	throw IpcamError(property_not_implemented);
+@@ -851,6 +861,20 @@ void DefaultVideoSource::Imaging::Exposure::setMaxGain(uint32_t value)
+ 	source->imaging().exposure().setMaxGain(value);
+ }
+ 
++uint32_t DefaultVideoSource::Imaging::Exposure::getCompensation()
++{
++	DefaultVideoSource* source = DEFAULT_VIDEO_SOURCE(dynamic_cast<DefaultVideoSource&>(imaging().videoSource()).source());
++	if (source == NULL) throw IpcamError(property_not_implemented);
++	return source->imaging().exposure().getCompensation();
++}
++
++void DefaultVideoSource::Imaging::Exposure::setCompensation(uint32_t value)
++{
++	DefaultVideoSource* source = DEFAULT_VIDEO_SOURCE(dynamic_cast<DefaultVideoSource&>(imaging().videoSource()).source());
++	if (source == NULL) throw IpcamError(property_not_implemented);
++	source->imaging().exposure().setCompensation(value);
++}
++
+ uint32_t DefaultVideoSource::Imaging::Exposure::getMinIris()
+ {
+ 	DefaultVideoSource* source = DEFAULT_VIDEO_SOURCE(dynamic_cast<DefaultVideoSource&>(imaging().videoSource()).source());
+diff --git a/src/common/video-source.h b/src/common/video-source.h
+index d5800d2..8847deb 100644
+--- a/src/common/video-source.h
++++ b/src/common/video-source.h
+@@ -124,6 +124,8 @@ public:
+ 			virtual void			setMaxIris(uint32_t value);
+ 			virtual uint32_t		getExposureTime();
+ 			virtual void			setExposureTime(uint32_t value);
++			virtual uint32_t		getCompensation();
++			virtual void			setCompensation(uint32_t value);
+ 			virtual uint32_t		getGain();
+ 			virtual void			setGain(uint32_t value);
+ 			virtual uint32_t		getIris();
+@@ -316,6 +318,8 @@ public:
+ 			virtual void			setMinIris(uint32_t value);
+ 			virtual uint32_t		getMaxIris();
+ 			virtual void			setMaxIris(uint32_t value);
++			virtual uint32_t		getCompensation();
++			virtual void			setCompensation(uint32_t value);
+ 			virtual uint32_t		getExposureTime();
+ 			virtual void			setExposureTime(uint32_t value);
+ 			virtual uint32_t		getGain();
+diff --git a/src/dbus/dbus-video-source.cpp b/src/dbus/dbus-video-source.cpp
+index efc3dc1..1982603 100644
+--- a/src/dbus/dbus-video-source.cpp
++++ b/src/dbus/dbus-video-source.cpp
+@@ -360,6 +360,17 @@ VideoSource::VideoSource
+ 		{
+ 			_video_source->imaging().exposure().setExposureTime((uint32_t)value);
+ 		});
++	DEFINE_PROP(EXPOSURE_INTERFACE ".Compensation", 
++		[this](DBus::InterfaceAdaptor &interface,
++		   const std::string &property, DBus::Variant &value)
++		{
++			value.writer().append_uint32(_video_source->imaging().exposure().getCompensation());
++		},
++		[this](DBus::InterfaceAdaptor &interface,
++		   const std::string &property, const DBus::Variant &value)
++		{
++			_video_source->imaging().exposure().setCompensation((uint32_t)value);
++		});
+ 	DEFINE_PROP(EXPOSURE_INTERFACE ".Gain", 
+ 		[this](DBus::InterfaceAdaptor &interface,
+ 		   const std::string &property, DBus::Variant &value)
+diff --git a/src/dbus/video-source-introspect.xml b/src/dbus/video-source-introspect.xml
+index 581c0c1..5f0329d 100644
+--- a/src/dbus/video-source-introspect.xml
++++ b/src/dbus/video-source-introspect.xml
+@@ -38,6 +38,7 @@
+     <property name="MinIris" type="u" access="readwrite"/>
+     <property name="MaxIris" type="u" access="readwrite"/>
+     <property name="ExposureTime" type="u" access="readwrite"/>
++    <property name="Compensation" type="u" access="readwrite"/>
+     <property name="Gain" type="u" access="readwrite"/>
+     <property name="Iris" type="u" access="readwrite"/>
+   </interface>
+diff --git a/src/platform/hi3518v200/himpp-video-isp.cpp b/src/platform/hi3518v200/himpp-video-isp.cpp
+index 9e569f4..44159c6 100644
+--- a/src/platform/hi3518v200/himpp-video-isp.cpp
++++ b/src/platform/hi3518v200/himpp-video-isp.cpp
+@@ -253,6 +253,7 @@ void HimppVideoISP::doEnableElement()
+ 		exp_attr.stAuto.stExpTimeRange.u32Max = _imaging._exposure._max_exp_time;
+ 		exp_attr.stAuto.stAGainRange.u32Min = _imaging._exposure._min_gain;
+ 		exp_attr.stAuto.stAGainRange.u32Max = _imaging._exposure._max_gain;
++		exp_attr.stAuto.u8Compensation = _imaging._exposure._compensation;
+ 
+ 		switch (_imaging._antiflicker._mode) {
+ 		case ANTIFLICKER_OFF:
+@@ -299,6 +300,7 @@ void HimppVideoISP::doEnableElement()
+ 		wdr_attr.bEnable = \
+ 			(_imaging._widedynamicrange._mode == WDR_ON) ?
+ 				HI_TRUE : HI_FALSE;
++		wdr_attr.stAuto.u8Strength = _imaging._widedynamicrange._level;
+ 		if (HI_MPI_ISP_SetDRCAttr(_isp_dev, &wdr_attr) != HI_SUCCESS)
+ 			fprintf(stderr, "HI_MPI_ISP_SetDRCAttr failed\n");
+ 	}
+@@ -581,6 +583,26 @@ uint32_t HimppVideoISP::Imaging::Exposure::getMaxIris(void)
+ 	return _max_iris;
+ }
+ 
++uint32_t HimppVideoISP::Imaging::Exposure::getCompensation(void)
++{
++	return _compensation;
++}
++
++void HimppVideoISP::Imaging::Exposure::setCompensation(uint32_t value)
++{
++	HimppVideoISP& isp = dynamic_cast<HimppVideoISP&>(imaging().videoSource());
++	if (isp.is_enabled()) {
++		ISP_EXPOSURE_ATTR_S exp_attr;
++		if (HI_MPI_ISP_GetExposureAttr(isp.ispDev(), &exp_attr) != HI_SUCCESS)
++			throw IpcamError("get exposure attr failed");
++
++		exp_attr.stAuto.u8Compensation = (HI_U8)value;
++		if (HI_MPI_ISP_SetExposureAttr(isp.ispDev(), &exp_attr) != HI_SUCCESS)
++			throw IpcamError("set exposure attr failed");
++	}
++	_compensation = value;
++}
++
+ void HimppVideoISP::Imaging::Exposure::setExposureTime(uint32_t value)
+ {
+ 	HimppVideoISP& isp = dynamic_cast<HimppVideoISP&>(imaging().videoSource());
+@@ -822,7 +844,7 @@ void HimppVideoISP::Imaging::WideDynamicRange::setLevel(uint32_t value)
+ 		if (HI_MPI_ISP_GetDRCAttr(isp.ispDev(), &wdr_attr) != HI_SUCCESS)
+ 			throw IpcamError("get WDR attr failed");
+ 
+-		//wdr_attr.bEnable = (value == WDR_ON) ? HI_TRUE : HI_FALSE;
++		wdr_attr.stAuto.u8Strength = (HI_U8)value;
+ 		if (HI_MPI_ISP_SetDRCAttr(isp.ispDev(), &wdr_attr) != HI_SUCCESS)
+ 			throw IpcamError("get WDR attr failed");
+ 	}
+diff --git a/src/platform/hi3518v200/himpp-video-isp.h b/src/platform/hi3518v200/himpp-video-isp.h
+index ed0b910..44032f5 100644
+--- a/src/platform/hi3518v200/himpp-video-isp.h
++++ b/src/platform/hi3518v200/himpp-video-isp.h
+@@ -88,6 +88,8 @@ public:
+ 			void				setMinIris(uint32_t value);
+ 			uint32_t			getMaxIris();
+ 			void				setMaxIris(uint32_t value);
++			uint32_t			getCompensation();
++			void				setCompensation(uint32_t value);
+ 			uint32_t			getExposureTime();
+ 			void				setExposureTime(uint32_t value);
+ 			uint32_t			getGain();
+@@ -106,6 +108,7 @@ public:
+ 			uint32_t			_min_iris;
+ 			uint32_t			_max_iris;
+ 			uint32_t			_exp_time;
++			uint32_t			_compensation;
+ 			uint32_t			_gain;
+ 			uint32_t			_iris;
+ 		};
+-- 
+2.9.4
+
