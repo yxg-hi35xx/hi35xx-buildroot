@@ -3,9 +3,11 @@
 # Start live-streamer
 #
 
-CONFIGFILE=/etc/config/live-streamer.conf
-
 SENSOR_TYPE=$(. /lib/scripts/hardware.sh; detect_sensor_type)
+
+CONFIGFILE=/etc/config/live-streamer-${SENSOR_TYPE}.conf
+[ -f "$CONFIGFILE" ] || cp -f /etc/config/live-streamer.conf "$CONFIGFILE"
+
 VSRC0OPT="-vsrc isp0:sensor=${SENSOR_TYPE}|videv0|vichn0|vpgrp0|vpchn0"
 VENC0OPT="-venc vpchn0|vechn0:encoding=H264,framerate=15,resolution=D1"
 VENC1OPT="-venc vpchn0|vechn1:encoding=H264,framerate=25,resolution=720P"
