@@ -151,6 +151,7 @@ static int temp_itrp;
 
 static int spi_write(char reg, char val)
 {
+	unsigned long timeout;
 	U_SPI_RW w_data, r_data;
 
 	r_data.u32 = 0;
@@ -163,24 +164,33 @@ static int spi_write(char reg, char val)
 
 	writel(w_data.u32, SPI_RW);
 
+	timeout = jiffies + msecs_to_jiffies(200);
+
 	do {
 		r_data.u32 = readl(SPI_RW);
-	} while (r_data.bits.spi_busy);
+		if (!r_data.bits.spi_busy)
+			return 0;
 
-	return 0;
+		cond_resched();
+	} while (time_before(jiffies, timeout));
+
+	return ETIMEDOUT;
 }
 
 static int spi_rtc_write(char reg, char val)
 {
+	int retval;
+
 	mutex_lock(&hirtc_lock);
-	spi_write(reg, val);
+	retval = spi_write(reg, val);
 	mutex_unlock(&hirtc_lock);
 
-	return 0;
+	return retval;
 }
 
 static int spi_read(char reg, char* val)
 {
+	unsigned long timeout;
 	U_SPI_RW w_data, r_data;
 
 	r_data.u32 = 0;
@@ -191,22 +201,31 @@ static int spi_read(char reg, char* val)
 
 	writel(w_data.u32, SPI_RW);
 
+	timeout = jiffies + msecs_to_jiffies(200);
+
 	do {
 		r_data.u32 = readl(SPI_RW);
-	} while (r_data.bits.spi_busy);
+		if (!r_data.bits.spi_busy) {
+			*val = r_data.bits.spi_rdata;
+			return 0;
+		}
 
-	*val = r_data.bits.spi_rdata;
+		cond_resched();
+	} while (time_before(jiffies, timeout));
 
-	return 0;
+
+	return ETIMEDOUT;
 }
 
 static int spi_rtc_read(char reg, char* val)
 {
+	int retval;
+
 	mutex_lock(&hirtc_lock);
-	spi_read(reg, val);
+	retval = spi_read(reg, val);
 	mutex_unlock(&hirtc_lock);
 
-	return 0;
+	return retval;
 }
 
 static int temp_crg_reset(void)
@@ -518,15 +537,15 @@ static int __init hi3518_rtc_init(void)
 		goto err_unregister_pdev;
 	}
 
-	ret = request_irq(RTC_IRQ, &rtc_alrm_interrupt, IRQF_SHARED,
-			"RTC Alarm", (void*)rtc_dev);
+	ret = request_threaded_irq(RTC_IRQ, NULL, &rtc_alrm_interrupt,
+			IRQF_SHARED, "RTC Alarm", (void*)rtc_dev);
 	if(ret) {
 		pr_err("IRQ%d error %d\n", RTC_IRQ, ret);
 		goto err_unregister_rtcdev;
 	}
 
-	ret = request_irq(RTC_IRQ, &rtc_temp_interrupt, IRQF_SHARED,
-			"RTC Temperature", (void*)&temp_itrp);
+	ret = request_threaded_irq(RTC_IRQ, NULL, &rtc_temp_interrupt,
+			IRQF_SHARED, "RTC Temperature", (void*)&temp_itrp);
 	if (ret) {
 		pr_err("IRQ%d error %d\n", RTC_IRQ, ret);
 		goto err_free_irq;
@@ -570,7 +589,7 @@ static int __init hi3518_rtc_init(void)
 	return 0;
 
 err_free_irq:
-	free_irq(RTC_IRQ, NULL);
+	free_irq(RTC_IRQ, (void*)rtc_dev);
 err_unregister_rtcdev:
 	rtc_device_unregister(rtc_dev);
 err_unregister_pdev:
