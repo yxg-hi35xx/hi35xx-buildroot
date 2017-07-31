@@ -20,6 +20,8 @@ along with this library; if not, write to the Free Software Foundation, Inc.,
 // client application.  For a full-featured RTSP client application - with much more functionality, and many options - see
 // "openRTSP": http://www.live555.com/openRTSP/
 
+#include <stdio.h>
+#include <fcntl.h>
 #include <time.h>
 #include <getopt.h>
 #include <libgen.h>
@@ -36,9 +38,17 @@ EventTriggerId snapshotTriggerId = 0;
 const char *snapshotPrefix = "";
 const char *snapshotFormat = "%Y%m%d-%H%M%S.jpg";
 
+static int indicatorLedGPIO = -1;
+TaskToken indicatorLedTask = NULL;
+
 char eventLoopWatchVariable = 0;
 
 // Forward function definitions:
+
+// Indicator LED
+void initializeGPIO();
+void turnOnLedIndicator();
+void turnOffLedIndicator();
 
 // RTSP 'response handlers':
 void continueAfterDESCRIBE(RTSPClient* rtspClient, int resultCode, char* resultString);
@@ -591,6 +601,7 @@ void usage(UsageEnvironment& env, char const* progName) {
          "  -h = show this help text\n"
          "  -s = log output to syslog instead of stdout\n"
          "  -d = increase debugging verbosity\n"
+         "  -l = specify indicator led gpio number\n"
          "  -p = path prefix of the filename\n"
          "  -f = format of filename\n";
 }
@@ -603,7 +614,17 @@ void signalHandlerSnapshot(int sig) {
   rtspClient->envir().taskScheduler().triggerEvent(snapshotTriggerId, rtspClient);
 }
 
+static void indicatorLedTaskProc(void *clientData) {
+  turnOffLedIndicator();
+}
+
 void takeSnapshot(void* clientData) {
+  // Turn on indicator LED
+  TaskScheduler &scheduler = rtspClient->envir().taskScheduler();
+  scheduler.unscheduleDelayedTask(indicatorLedTask);
+  turnOnLedIndicator();
+  indicatorLedTask = scheduler.scheduleDelayedTask(200000, indicatorLedTaskProc, NULL);
+  // Do taking picture
   *env << "Taking snapshot\n";
   StreamClientState& scs = ((ourRTSPClient*)rtspClient)->scs;
 
@@ -633,15 +654,19 @@ int main(int argc, char** argv) {
   env = BasicUsageEnvironment::createNew(*scheduler);
 
   int c;
-  while ((c = getopt(argc, argv, ":hsdf:p:")) != -1) {
+  while ((c = getopt(argc, argv, ":hsdl:f:p:")) != -1) {
     switch (c) {
     case 'h':
       usage(*env, argv[0]);
       return 0;
     case 's':
       io_to_syslog = true;
+      break;
     case 'd':
       debug_level = 1;
+      break;
+    case 'l':
+      indicatorLedGPIO = strtoul(optarg, NULL, 0);
       break;
     case 'p':
       snapshotPrefix = optarg;
@@ -674,6 +699,11 @@ int main(int argc, char** argv) {
     redirect_io_to_syslog(&stdout);
     redirect_io_to_syslog(&stderr);
   }
+  
+  if (indicatorLedGPIO >= 0) {
+  	initializeGPIO();
+  	atexit(turnOffLedIndicator);
+  }
 
   // Open and start streaming:
   openURL(*env, argv[0], argv[optind]);
@@ -693,5 +723,51 @@ int main(int argc, char** argv) {
   }
 
   return 0;
+}
+
+static int write_file(const char *fname, const char *str)
+{
+  int fd, bytes;
+
+  if ((fd = open(fname, O_WRONLY)) < 0)
+    return fd;
+
+  bytes = write(fd, str, strlen(str));
+
+  close(fd);
+
+  return bytes;
+}
+
+void initializeGPIO() {
+  char buf[32];
+  char fname[128];
+
+  sprintf(fname, "/sys/class/gpio/gpio%d/direction", indicatorLedGPIO);
+  if (access(fname, R_OK) < 0) {
+    sprintf(buf, "%d", indicatorLedGPIO);
+    if (write_file("/sys/class/gpio/export", buf) < 0) {
+      perror("Failed to export GPIO for record indicator");
+      return;
+    }
+  }
+
+  if (write_file(fname, "out") < 0) {
+    perror("Failed to set GPIO to output");
+  }
+
+  turnOffLedIndicator();
+}
+
+void turnOnLedIndicator() {
+  char fname[128];
+  sprintf(fname, "/sys/class/gpio/gpio%d/value", indicatorLedGPIO);
+  write_file(fname, "0");
+}
+
+void turnOffLedIndicator() {
+  char fname[128];
+  sprintf(fname, "/sys/class/gpio/gpio%d/value", indicatorLedGPIO);
+  write_file(fname, "1");
 }
 

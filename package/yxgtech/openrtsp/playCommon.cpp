@@ -21,6 +21,9 @@ along with this library; if not, write to the Free Software Foundation, Inc.,
 // then we don't recommend using this code as a model, because it is too complex (with many options).
 // Instead, we recommend using the "testRTSPClient" application code as a model.
 
+#include <stdio.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <libgen.h>
 #include "playCommon.hh"
 #include "BasicUsageEnvironment.hh"
@@ -57,6 +60,10 @@ void checkForPacketArrival(void* clientData);
 void checkInterPacketGaps(void* clientData);
 void checkSessionTimeoutBrokenServer(void* clientData);
 void beginQOSMeasurement();
+
+void initializeGPIO();
+void turnOnLedIndicator();
+void turnOffLedIndicator();
 
 char const* progName;
 UsageEnvironment* env;
@@ -131,10 +138,13 @@ char* usernameForREGISTER = NULL;
 char* passwordForREGISTER = NULL;
 UserAuthenticationDatabase* authDBForREGISTER = NULL;
 
+int indicatorLedGPIO = -1;
+
 struct timeval startTime;
 
 void usage() {
   *env << "Usage: " << progName
+       << " [-L <indicator-led-gpio> ]"
        << " [-p <startPortNum>] [-r|-q|-4|-i] [-a|-v] [-V] [-d <duration>] [-D <max-inter-packet-gap-time> [-c] [-S <offset>] [-n] [-O]"
 	   << (controlConnectionUsesTCP ? " [-t|-T <http-port>]" : "")
        << " [-u <username> <password>"
@@ -174,6 +184,15 @@ int main(int argc, char** argv) {
     }
 
     switch (opt[1]) {
+    case 'L': { // specify the indicator LED GPIO
+      int gpioArg;
+      if (sscanf(argv[2], "%d", &gpioArg) != 1) {
+        usage();
+      }
+      indicatorLedGPIO = gpioArg;
+      ++argv; --argc;
+      break;
+    }
     case 'p': { // specify start port number
       int portArg;
       if (sscanf(argv[2], "%d", &portArg) != 1) {
@@ -646,6 +665,12 @@ int main(int argc, char** argv) {
       shutdown();
     }
     continueAfterClientCreation1();
+  }
+
+  if (indicatorLedGPIO >= 0) {
+    initializeGPIO();
+    turnOnLedIndicator();
+    atexit(turnOffLedIndicator);
   }
 
   // All subsequent activity takes place within the event loop:
@@ -1555,4 +1580,48 @@ void checkSessionTimeoutBrokenServer(void* /*clientData*/) {
     = env->taskScheduler().scheduleDelayedTask(secondsUntilNextKeepAlive*1000000,
 			 (TaskFunc*)checkSessionTimeoutBrokenServer, NULL);
 					       
+}
+
+static int write_file(const char *fname, const char *str)
+{
+  int fd, bytes;
+
+  if ((fd = open(fname, O_WRONLY)) < 0)
+    return fd;
+
+  bytes = write(fd, str, strlen(str));
+
+  close(fd);
+
+  return bytes;
+}
+
+void initializeGPIO() {
+  char buf[32];
+  char fname[128];
+
+  sprintf(fname, "/sys/class/gpio/gpio%d/direction", indicatorLedGPIO);
+  if (access(fname, R_OK) < 0) {
+    sprintf(buf, "%d", indicatorLedGPIO);
+    if (write_file("/sys/class/gpio/export", buf) < 0) {
+      perror("Failed to export GPIO for record indicator");
+      return;
+    }
+  }
+
+  if (write_file(fname, "out") < 0) {
+    perror("Failed to set GPIO to output");
+  }
+}
+
+void turnOnLedIndicator() {
+  char fname[128];
+  sprintf(fname, "/sys/class/gpio/gpio%d/value", indicatorLedGPIO);
+  write_file(fname, "0");
+}
+
+void turnOffLedIndicator() {
+  char fname[128];
+  sprintf(fname, "/sys/class/gpio/gpio%d/value", indicatorLedGPIO);
+  write_file(fname, "1");
 }

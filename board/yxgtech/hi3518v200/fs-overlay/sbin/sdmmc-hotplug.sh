@@ -18,7 +18,7 @@ case ${ACTION} in
       mount -t "$fstype" "/dev/${MDEV}" "${mnt}" || exit 1
       [ -x /usr/bin/snapshotd ] && {
         start-stop-daemon -S -q -m -b -p $SNAPSHOTD_PID \
-            -x /usr/bin/snapshotd -- -s -p "$mnt/photo/" "$SNAPSHOT_URI"
+            -x /usr/bin/snapshotd -- -s -l57 -p "$mnt/photo/" "$SNAPSHOT_URI"
       }
     ) &
     ;;
