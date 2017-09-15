@@ -135,12 +135,12 @@
  *----------------------------------------------------------------------*/
 #include "../../product/env_setup.h"
 /* env in flash instead of CFG_ENV_IS_NOWHERE */
-#define CONFIG_ENV_OFFSET	0x80000      /* environment starts here */
+#define CONFIG_ENV_OFFSET	0x40000      /* environment starts here */
 #define CONFIG_ENV_NAND_ADDR	(CONFIG_ENV_OFFSET)
 #define CONFIG_ENV_SPI_ADDR	(CONFIG_ENV_OFFSET)
 #define CONFIG_CMD_SAVEENV
 
-#define CONFIG_ENV_SIZE		0x40000    /*include ENV_HEADER_SIZE */
+#define CONFIG_ENV_SIZE		0x20000    /*include ENV_HEADER_SIZE */
 #define CONFIG_ENV_SECT_SIZE	CONFIG_ENV_SIZE
 #define CONFIG_NR_DRAM_BANKS	1          /* we have 1 bank of DRAM */
 /* kernel parameter list phy addr */
@@ -294,7 +294,6 @@
 #define CONFIG_DOS_PARTITION			1
 
 #define CONFIG_CMD_FAT				1
-#define CONFIG_CMD_EXT2				1
 
 /*-----------------------------------------------------------------------
  * sdcard
@@ -310,15 +309,18 @@
  * eMMC Flash Configuration
  * ----------------------------------------------------------------------*/
 #ifndef CONFIG_AUTO_SD_UPDATE /* Host0 is multiplex for sd/eMMC */
-#define CONFIG_EMMC_SUPPORT
+#undef CONFIG_EMMC_SUPPORT
 #ifdef CONFIG_EMMC_SUPPORT
 	#define CONFIG_HIMCI_V200
 	#define CONFIG_EMMC_PORT	1
+#else
+	#define CONFIG_HIMCI_V200
+	#define CONFIG_MMC		1
 #endif
 #endif
 
 #ifdef CONFIG_HIMCI_V200
-	#define CONFIG_MMC_DEVID	            1 /* emmc = 1; SD = 0 */
+	#define CONFIG_MMC_DEVID	            0 /* emmc = 1; SD = 0 */
 	#define CONFIG_MMC_BOOT_ADDR                0
 	#define CONFIG_MMC_POWER_OFF_TIMEOUT        50
 	#define CONFIG_MMC_POWER_ON_TIMEROUT        50
@@ -330,8 +332,6 @@
 	/* env in flash instead of CFG_ENV_IS_NOWHERE */
 	#define CONFIG_ENV_IS_IN_EMMC               1
 	#define CONFIG_CMD_MMC
-	#define CONFIG_EXT4
-	#define CONFIG_EXT4_SPARSE
 #endif /* CONFIG_GENERIC_MMC */
 
 /*-----------------------------------------------------------------------
@@ -354,7 +354,7 @@
 /*-----------------------------------------------------------------------
  * Snapshot boot support
  * ----------------------------------------------------------------------*/
-#define CONFIG_SNAPSHOT_BOOT	1
+#undef CONFIG_SNAPSHOT_BOOT
 #ifdef CONFIG_SNAPSHOT_BOOT
 	/* enable MMU for fast decompress */
 	/* #define CONFIG_ARCH_MMU */
