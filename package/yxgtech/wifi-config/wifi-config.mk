@@ -4,7 +4,7 @@
 #
 ################################################################################
 
-WIFI_CONFIG_VERSION = 0.2.1
+WIFI_CONFIG_VERSION = 0.2.4
 WIFI_CONFIG_SITE_METHOD = file
 WIFI_CONFIG_SITE = $(TOPDIR)/package/yxgtech/wifi-config
 WIFI_CONFIG_SOURCE = wifi-config-$(WIFI_CONFIG_VERSION).tar.xz
