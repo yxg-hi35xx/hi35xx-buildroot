@@ -21,3 +21,15 @@ config BR2_PACKAGE_LIVE_STREAMER
 comment "live-streamer needs a toolchain w/ threads, dynamic library"
 	depends on !BR2_TOOLCHAIN_HAS_THREADS || BR2_STATIC_LIBS
 	depends on BR2_USE_MMU
+
+if BR2_PACKAGE_LIVE_STREAMER
+
+config BR2_PACKAGE_LIVE_STREAMER_OSD
+	bool "enable osd support"
+	default y
+	help
+	  Enable osd support for live streamer. For reduce memory usage 
+	  on hi3518e v201, osd should be disabled.
+
+endif
+

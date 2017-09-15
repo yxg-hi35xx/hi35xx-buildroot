@@ -9,13 +9,15 @@ CONFIGFILE=/etc/config/live-streamer-${SENSOR_TYPE}.conf
 [ -f "$CONFIGFILE" ] || cp -f /etc/config/live-streamer.conf "$CONFIGFILE"
 
 VSRC0OPT="-vsrc isp0:sensor=${SENSOR_TYPE}|videv0|vichn0|vpgrp0|vpchn0"
-VENC0OPT="-venc vpchn0|vechn0:encoding=H264,framerate=15,resolution=D1"
+#VENC0OPT="-venc vpchn0|vechn0:encoding=H264,framerate=15,resolution=D1"
 VENC1OPT="-venc vpchn0|vechn1:encoding=H264,framerate=25,resolution=720P"
-VENC2OPT="-venc vpchn0|vechn2:encoding=MJPEG,framerate=5"
+#VENC2OPT="-venc vpchn0|vechn2:encoding=MJPEG,framerate=5"
 #ASRC0OPT="-asrc acodec0|aidev0|aichn0"
 #AENC0OPT="-aenc aichn0|aechn0:encoding=G711A"
-STREAMOPT="-stream 0:vechn0 -stream record:vechn1 -stream snapshot:vechn2"
-MEDIA_OPTIONS="$VSRC0OPT $VENC0OPT $VENC1OPT $VENC2OPT $STREAMOPT"
+#STREAMOPT="-stream 0:vechn0 -stream record:vechn1 -stream snapshot:vechn2"
+STREAMOPT="-stream 0:vechn1"
+#MEDIA_OPTIONS="$VSRC0OPT $VENC0OPT $VENC1OPT $VENC2OPT $STREAMOPT"
+MEDIA_OPTIONS="$VSRC0OPT $VENC1OPT $STREAMOPT"
 
 start() {
     echo -n "Starting live-streamer: "

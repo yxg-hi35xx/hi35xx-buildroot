@@ -12,7 +12,7 @@ start() {
       cd ${HIMPP_PREFIX}/lib/himpp-ko
       osmem=$(cat /proc/cmdline 2>/dev/null | \
               sed -nr 's/mem=([^[:space:]]+).*/\1/p')
-      ./load3518e.sh -i -sensor ${SENSOR_TYPE} -offline
+      ./load3518e.sh -i -sensor ${SENSOR_TYPE} -online
       [ $? = 0 ] && echo "OK" || echo "FAIL"
     )
 }

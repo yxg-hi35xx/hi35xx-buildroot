@@ -8,9 +8,9 @@
 ####################Variables Definition##########################
 SNS_TYPE=ar0130
 mem_start=0x80000000
-totmem_size=64M
+totmem_size=32M
 osmem_size=$(cat /proc/cmdline | sed -nre 's/mem=([^[:space:]]+).*/\1/p')
-osmem_size=${osmem_size:=40M}
+osmem_size=${osmem_size:=26M}
 
 usage="\
 Usage: $0 [OPTIONS]

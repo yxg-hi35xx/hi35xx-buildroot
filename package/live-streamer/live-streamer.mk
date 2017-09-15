@@ -4,15 +4,20 @@
 #
 ################################################################################
 
-LIVE_STREAMER_VERSION = 035386aa89583cbf32adb35d1c4e6a2cf4ff9026
-LIVE_STREAMER_SITE = $(call github,hi35xx,live-streamer,$(LIVE_STREAMER_VERSION))
+LIVE_STREAMER_VERSION = df6e3f0730e2d74be3074a90bad26571ef9699ab
+LIVE_STREAMER_SITE = $(call github,yxg-hi35xx,live-streamer,$(LIVE_STREAMER_VERSION))
 LIVE_STREAMER_DEPENDENCIES = host-pkgconf libev dbus-cpp live555
-LIVE_STREAMER_DEPENDENCIES += fontconfig sdl_ttf sdl_image
 LIVE_STREAMER_INSTALL_STAGING = YES
 LIVE_STREAMER_LICENSE = GPLv2+
 LIVE_STREAMER_LICENSE_FILES = COPYING
 
 LIVE_STREAMER_CONF_OPTS = --with-live555
+
+ifeq ($(BR2_PACKAGE_LIVE_STREAMER_OSD),y)
+LIVE_STREAMER_DEPENDENCIES += fontconfig sdl_ttf sdl_image
+else
+LIVE_STREAMER_CONF_OPTS += --disable-osd
+endif
 
 ifeq ($(BR2_PACKAGE_HIMPP_HI3518V100),y)
 LIVE_STREAMER_DEPENDENCIES += himpp-hi3518v100
