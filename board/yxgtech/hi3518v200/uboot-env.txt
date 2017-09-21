@@ -1,7 +1,7 @@
-meminfo=mem=40M
+meminfo=mem=24M
 sensor_type=ar0130
 console=ttyAMA0,115200n8
-bootargs=mem=40M console=ttyAMA0,115200n8
+bootargs=mem=24M console=ttyAMA0,115200n8
 bootdelay=1
 baudrate=115200
 ethaddr=00:00:23:34:45:66
