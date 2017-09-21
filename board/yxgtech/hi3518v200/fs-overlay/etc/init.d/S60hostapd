@@ -13,7 +13,7 @@ start() {
 }
 
 stop() {
-    printf "Stopping crond: "
+    printf "Stopping hostapd: "
     start-stop-daemon -K -q -p $PIDFILE \
 		-x /usr/sbin/hostapd
     [ $? = 0 ] && echo "OK" || echo "FAIL"
