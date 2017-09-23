@@ -1,12 +1,21 @@
 #!/bin/sh
 #
-# Start crond....
+# Start hostapd....
 #
 
 PIDFILE=/var/run/hostapd.pid
 
+ssid() {
+    grep XXXXXX /etc/hostapd.conf 2>&1 > /dev/null
+    if [ $? = 0 ]; then
+        ID=`/sbin/ifconfig wlan0 | grep HWaddr | awk '{print $5}' | awk -F: '{print $4$5$6}'`
+        sed -i "s/^ssid=\(\w*\)XXXXXX/ssid=\1${ID}/g" /etc/hostapd.conf
+    fi
+}
+
 start() {
     printf "Starting hostapd: "
+    ssid
     start-stop-daemon -S -q -m -b -p $PIDFILE \
 		-x /usr/sbin/hostapd -- -B /etc/hostapd.conf
     [ $? = 0 ] && echo "OK" || echo "FAIL"
