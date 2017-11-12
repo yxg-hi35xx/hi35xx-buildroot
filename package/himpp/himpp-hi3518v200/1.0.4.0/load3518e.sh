@@ -10,7 +10,7 @@ SNS_TYPE=ar0130
 mem_start=0x80000000
 totmem_size=32M
 osmem_size=$(cat /proc/cmdline | sed -nre 's/mem=([^[:space:]]+).*/\1/p')
-osmem_size=${osmem_size:=24M}
+osmem_size=${osmem_size:=23M}
 
 usage="\
 Usage: $0 [OPTIONS]
